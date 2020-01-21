@@ -82,12 +82,12 @@ endif
 ifeq ($(CONFIG_CPU_BIG_ENDIAN), y)
 KBUILD_CPPFLAGS	+= -mbig-endian
 AS		+= -EB
-LD	+= -EB $(call ld-option, -maarch64_elf64_be_vec, -maarch64elfb)
+LD		+= -EB
 UTS_MACHINE	:= aarch64_be
 else
 KBUILD_CPPFLAGS	+= -mlittle-endian
 AS		+= -EL
-LD	+= -EL $(call ld-option, -maarch64_elf64_le_vec, -maarch64elf)
+LD		+= -EL
 UTS_MACHINE	:= aarch64
 endif
 
