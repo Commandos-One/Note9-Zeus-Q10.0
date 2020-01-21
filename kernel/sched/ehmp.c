@@ -17,21 +17,6 @@
 #include "sched.h"
 #include "tune.h"
 
-unsigned long task_util(struct task_struct *p)
-{
-#ifdef CONFIG_SCHED_WALT
-	if (!walt_disabled && sysctl_sched_use_walt_task_util) {
-		unsigned long demand = p->ravg.demand;
-		return (demand << SCHED_CAPACITY_SHIFT) / walt_ravg_window;
-	}
-#endif
-
-	if (rt_task(p))
-		return p->rt.avg.util_avg;
-	else
-		return p->se.avg.util_avg;
-}
-
 static inline struct task_struct *task_of(struct sched_entity *se)
 {
 	return container_of(se, struct task_struct, se);
@@ -647,9 +632,6 @@ static int cpu_util_wake(int cpu, struct task_struct *p)
 	cfs_rq = &cpu_rq(cpu)->cfs;
 	util = READ_ONCE(cfs_rq->avg.util_avg);
 
-	/* Discount task's blocked util from CPU's util */
-	util -= min_t(unsigned int, util, task_util(p));
-
 	/*
 	 * Covered cases:
 	 *
@@ -793,7 +775,6 @@ find_boost_target(struct sched_domain *sd, struct task_struct *p,
 				continue;
 
 			wake_util = cpu_util_wake(i, p);
-			new_util = wake_util + task_util(p);
 			new_util = max(min_util, new_util);
 
 			if (min(new_util + boost, max_capacity) > capacity_orig_of(i)) {
@@ -892,11 +873,7 @@ static int find_prefer_idle_target(struct sched_domain *sd,
 				continue;
 
 			wake_util = cpu_util_wake(i, p);
-			new_util = wake_util + task_util(p);
 			new_util = max(min_util, new_util);
-
-			trace_ehmp_prefer_idle(p, task_cpu(p), i, task_util(p),
-							new_util, idle_cpu(i));
 
 			if (new_util > capacity_orig_of(i)) {
 				if (idle_cpu(i)) {
@@ -1679,7 +1656,7 @@ int exynos_select_cpu_rt(struct sched_domain *sd, struct task_struct *p, bool bo
 	unsigned long overcap_util = ULONG_MAX;
 	struct cpumask idle_candidates;
 	struct cpumask overcap_idle_candidates;
-	unsigned long min_util = task_util(p);
+	unsigned long min_util;
 
 	cpumask_clear(&idle_candidates);
 	cpumask_clear(&overcap_idle_candidates);
@@ -1696,11 +1673,8 @@ int exynos_select_cpu_rt(struct sched_domain *sd, struct task_struct *p, bool bo
 				continue;
 
 			wake_util = cpu_util_wake(i, p);
-			new_util = wake_util + task_util(p);
 			new_util = max(min_util, new_util);
 
-			trace_ehmp_prefer_idle(p, task_cpu(p), i, task_util(p),
-							new_util, idle_cpu(i));
 
 			if (new_util > capacity_orig_of(i)) {
 				if (idle_cpu(i)) {
