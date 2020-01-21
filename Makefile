@@ -306,8 +306,8 @@ CONFIG_SHELL := $(shell if [ -x "$$BASH" ]; then echo $$BASH; \
 
 HOSTCC       = gcc
 HOSTCXX      = g++
-HOSTCFLAGS   := -Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fomit-frame-pointer -std=gnu89
-HOSTCXXFLAGS = -O2
+HOSTCFLAGS   = -Wall -Wmissing-prototypes -Wstrict-prototypes -Ofast -frename-registers -funroll-loops -fno-signed-zeros -fno-trapping-math -pipe -fgcse-las -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers -Wno-unused-variable -Wno-unused-value -fomit-frame-pointer $(GRAPHITE)
+HOSTCXXFLAGS = -Ofast -pipe -fgcse-las -fopenmp -D_GLIBCXX_PARALLEL $(GRAPHITE)
 
 # Decide whether to build built-in, modular, or both.
 # Normally, just do built-in.
@@ -364,12 +364,15 @@ CHECK		= sparse
 
 CHECKFLAGS     := -D__linux__ -Dlinux -D__STDC__ -Dunix -D__unix__ \
 		  -Wbitwise -Wno-return-void $(CF)
+
 NOSTDINC_FLAGS  =
-CFLAGS_MODULE   =
-AFLAGS_MODULE   =
-LDFLAGS_MODULE  =
-CFLAGS_KERNEL	=
-AFLAGS_KERNEL	=
+KERNELFLAGS	= -Ofast -DNDEBUG -ftree-loop-im -ftree-loop-ivcanon -fivopts -fsection-anchors -funsafe-loop-optimizations -funswitch-loops -frename-registers -frerun-cse-after-loop -fgcse-after-reload -Wno-maybe-uninitialized -fgcse-sm -fgcse-las -fweb -ftracer
+MODFLAGS        = -DMODULE $(KERNELFLAGS) 
+CFLAGS_MODULE   = $(MODFLAGS) 
+AFLAGS_MODULE   = $(MODFLAGS)
+LDFLAGS_MODULE  = -T $(srctree)/scripts/module-common.lds
+CFLAGS_KERNEL   =
+AFLAGS_KERNEL	= $(KERNELFLAGS)
 LDFLAGS_vmlinux =
 
 # Use USERINCLUDE when you must reference the UAPI directories only.
@@ -397,7 +400,11 @@ KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
 		   -Werror-implicit-function-declaration \
 		   -Wno-format-security \
 		   -Werror \
-		   -std=gnu89
+		   -fno-delete-null-pointer-checks \
+		   -unaligned-access \
+		   -fomit-frame-pointer \
+		   -std=gnu89 \
+		   $(KERNELFLAGS)
 KBUILD_CPPFLAGS := -D__KERNEL__
 KBUILD_AFLAGS_KERNEL :=
 KBUILD_CFLAGS_KERNEL :=
@@ -768,14 +775,16 @@ ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
 KBUILD_CFLAGS	+= -Os $(call cc-disable-warning,maybe-uninitialized,)
 else
 ifdef CONFIG_PROFILE_ALL_BRANCHES
-KBUILD_CFLAGS	+= -O2 $(call cc-disable-warning,maybe-uninitialized,)
+KBUILD_CFLAGS	+=  -Ofast -pipe $(call cc-disable-warning,maybe-uninitialized,)
 else
-KBUILD_CFLAGS	+= -O2 $(call cc-disable-warning,maybe-uninitialized,)
+KBUILD_CFLAGS	+=  -Ofast -pipe $(call cc-disable-warning,maybe-uninitialized,)
 endif
 endif
 
 KBUILD_CFLAGS += $(call cc-ifversion, -lt, 0409, \
 			$(call cc-disable-warning,maybe-uninitialized,))
+
+KBUILD_CFLAGS	+= -Ofast -pipe
 
 # Tell gcc to never replace conditional load with a non-conditional one
 KBUILD_CFLAGS	+= $(call cc-option,--param=allow-store-data-races=0)
